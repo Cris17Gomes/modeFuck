@@ -1,29 +1,31 @@
 # modeFuck
 
-Bot 100% funcional para trading de futuros na Binance com entradas **aleatórias** e configuráveis.
+Bot 100% funcional para trading de futuros na Binance com entradas **aleatórias** e configurações dinâmicas.
 
 ---
 
 ## 🚀 Visão Geral
 
 O `modeFuck` é um robô trader que:
+
 - Consome diretamente a **API de Futuros da Binance**
-- Realiza **entradas aleatórias** (BUY ou SELL) em pares ativados
+- Realiza **entradas aleatórias** (BUY ou SELL) nos pares ativados
 - Permite configurar:
-  - Alavancagem por par
+  - Alavancagem individual por par
   - Take Profit (TP)
   - Stop Loss (SL)
   - Valor investido por trade
-- Gerencia posições abertas e evita duplicidade
-- Opera em modo `ISOLATED` com pares configuráveis
-- foi 100% criado por mim e ajustando com chatGPT
+- Gerencia posições abertas e evita ordens duplicadas
+- Opera em modo `ISOLATED` com controle de risco por operação
+- Foi 100% desenvolvido por mim com apoio do ChatGPT
+
 ---
 
 ## 🧠 Estrutura
 
-- **Backend:** Totalmente funcional com rotas protegidas para controle do bot.
-- **Bot Core:** Estratégia automática com proteção e gerenciamento de risco.
-- **Frontend:** Em desenvolvimento.
+- **Backend:** Totalmente funcional com autenticação e rotas protegidas
+- **Bot Core:** Estratégia automática com gerenciamento completo
+- **Frontend:** Em desenvolvimento (em breve)
 
 ---
 
@@ -48,3 +50,15 @@ module.exports = {
     stopLoss: 0.40
   }
 };
+
+## 🔐 Exemplo de Variáveis de Ambiente (.env)
+Essas chaves são obtidas na sua conta da Binance e não devem ser expostas publicamente:
+
+API_KEY=your_api_key
+SECRET_KEY=your_secret_key
+
+JWT_SECRET=your_jwt_secret
+PORT=3000
+
+## 📩 Contato
+Desenvolvido por @Cris17Gomes
