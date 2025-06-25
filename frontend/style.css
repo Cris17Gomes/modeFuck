@@ -1,0 +1,46 @@
+body {
+  font-family: Arial, sans-serif;
+  padding: 20px;
+}
+
+h1 {
+  font-size: 24px;
+}
+
+.container {
+  max-width: 600px;
+  margin: auto;
+}
+
+.section {
+  margin-bottom: 20px;
+}
+
+label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: bold;
+}
+
+input[type="checkbox"],
+input[type="number"] {
+  margin-bottom: 10px;
+}
+
+.pair-item {
+  margin-left: 20px;
+  margin-bottom: 10px;
+}
+
+button {
+  padding: 10px 20px;
+  background-color: #4CAF50;
+  border: none;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+button:hover {
+  background-color: #45a049;
+}
