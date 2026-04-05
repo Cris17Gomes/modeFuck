@@ -5,7 +5,7 @@ require('dotenv').config();
 
 const client = Binance({
   apiKey: process.env.API_KEY,
-  apiSecret: process.env.SECRET_KEY,
+  apiSecret: process.env.API_SECRET,
   getTime: () => Date.now()
 });
 
