@@ -15,8 +15,8 @@ module.exports = {
   },
   riskManagement: {
     riskPerTrade: 50,
-    takeProfit: 0.35,
-    stopLoss: 0.20
+    takeProfit: 1.0,
+    stopLoss: 0.50
   }
 };
 
