@@ -675,7 +675,7 @@ async function setProtectionOrders(client, pair, side, entryPrice) {
       type: 'TAKE_PROFIT_MARKET',
       stopPrice: formattedTP,
       closePosition: true,
-      reduceOnly: true,
+      //reduceOnly: true,
       workingType: 'MARK_PRICE'
     });
 
@@ -686,7 +686,7 @@ async function setProtectionOrders(client, pair, side, entryPrice) {
       type: 'STOP_MARKET',
       stopPrice: formattedSL,
       closePosition: true,
-      reduceOnly: true,
+      //reduceOnly: true,
       workingType: 'MARK_PRICE'
     });
 
@@ -708,7 +708,7 @@ async function emergencyClose(client, pair) {
         side: parseFloat(position.positionAmt) > 0 ? 'SELL' : 'BUY',
         type: 'MARKET',
         quantity: Math.abs(parseFloat(position.positionAmt)),
-        reduceOnly: true
+        //reduceOnly: true
       });
 
       state.activePositions.delete(pair);
