@@ -14,7 +14,7 @@ module.exports = {
     '1000PEPEUSDT': { active: false, leverage: 10 },
   },
   riskManagement: {
-    riskPerTrade: 25,
+    riskPerTrade: 15,
     takeProfit: 0.35,
     stopLoss: 0.20
   }
