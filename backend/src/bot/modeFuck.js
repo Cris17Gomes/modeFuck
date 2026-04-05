@@ -708,7 +708,7 @@ async function emergencyClose(client, pair) {
         side: parseFloat(position.positionAmt) > 0 ? 'SELL' : 'BUY',
         type: 'MARKET',
         quantity: Math.abs(parseFloat(position.positionAmt)),
-        //reduceOnly: true
+        reduceOnly: true
       });
 
       state.activePositions.delete(pair);
