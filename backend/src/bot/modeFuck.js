@@ -499,6 +499,291 @@
 //   }, 2000);
 // };
 
+//cod
+// const { calculateTargets } = require('../bot/utils');
+// const config = require('../bot/config');
+// const { getFuturesExchangeInfo, setMarginType, setLeverage } = require('./connection');
+
+// const state = {
+//   activePositions: new Map(),
+//   pairConfigs: {},
+//   botEnabled: true
+// };
+
+// async function initializePairs(client) {
+//   try {
+//     const exchangeInfo = await getFuturesExchangeInfo();
+
+//     for (const pair of Object.keys(config.pairs)) {
+//       if (!config.pairs[pair].active) continue;
+
+//       const symbolInfo = exchangeInfo.symbols.find(s => s.symbol === pair);
+//       if (!symbolInfo) {
+//         console.warn(`⚠️ Par ${pair} não encontrado na Binance`);
+//         continue;
+//       }
+
+//       const lotFilter = symbolInfo.filters.find(f => f.filterType === 'LOT_SIZE');
+//       const priceFilter = symbolInfo.filters.find(f => f.filterType === 'PRICE_FILTER');
+//       const minNotional = symbolInfo.filters.find(f => f.filterType === 'MIN_NOTIONAL');
+
+//       state.pairConfigs[pair] = {
+//         quantityPrecision: symbolInfo.quantityPrecision,
+//         pricePrecision: symbolInfo.pricePrecision,
+//         stepSize: parseFloat(lotFilter.stepSize),
+//         minQty: parseFloat(lotFilter.minQty),
+//         tickSize: parseFloat(priceFilter.tickSize),
+//         minNotional: parseFloat(minNotional.notional)
+//       };
+
+//       try {
+//         await setMarginType(pair, config.marginType);
+//       } catch (err) {
+//         const msg = err?.response?.data?.msg || err.message;
+
+//         if (msg.includes('No need to change margin type')) {
+//           console.log(`ℹ️ MarginType já está como ${config.marginType} para ${pair}`);
+//         } else {
+//           console.warn(`⚠️ Erro ao definir marginType de ${pair}: ${msg}`);
+//         }
+//       }
+
+//       try {
+//         await setLeverage(pair, config.pairs[pair].leverage);
+//       } catch (err) {
+//         console.warn(`⚠️ Erro ao definir leverage de ${pair}: ${err.message}`);
+//       }
+//     }
+//   } catch (error) {
+//     console.warn(`⚠️ Erro ao inicializar pares: ${error.message}`);
+//   }
+// }
+
+// async function getFreeUSDT(client) {
+//   const account = await client.futuresAccountInfo();
+//   return parseFloat(account.availableBalance);
+// }
+
+// async function executeStrategy(client, availableBalance) {
+//   if (!state.botEnabled) return;
+
+//   const activePairs = Object.keys(config.pairs).filter(pair => config.pairs[pair].active);
+//   const freeMargin = await getFreeUSDT(client);
+
+//   for (const pair of activePairs) {
+//     try {
+//       if (state.activePositions.has(pair)) continue;
+
+//       const positions = await client.futuresPositionRisk({ symbol: pair });
+//       const position = positions.find(p => Math.abs(parseFloat(p.positionAmt)) > 0);
+
+//       if (position && Math.abs(parseFloat(position.positionAmt)) > 0) {
+//         state.activePositions.set(pair, true);
+//         continue;
+//       }
+
+//       const priceData = await client.futuresMarkPrice({ symbol: pair });
+//       const currentPrice = parseFloat(priceData.markPrice);
+
+//       const quantity = calculateSafeQuantity(
+//         pair,
+//         currentPrice,
+//         availableBalance,
+//         config.riskManagement.riskPerTrade
+//       );
+
+//       const orderValue = quantity * currentPrice;
+//       const minNotional = state.pairConfigs[pair].minNotional;
+//       const leverage = config.pairs[pair].leverage;
+//       const requiredMargin = orderValue / leverage;
+
+//       if (!quantity || orderValue < minNotional) {
+//         console.log(`⚠️ ${pair} | Valor abaixo do mínimo (${orderValue.toFixed(4)} < ${minNotional})`);
+//         continue;
+//       }
+
+//       if (requiredMargin > freeMargin) {
+//         console.log(`⚠️ ${pair} | Margem insuficiente (${requiredMargin.toFixed(2)} > ${freeMargin.toFixed(2)})`);
+//         continue;
+//       }
+
+//       const side = Math.random() > config.randomPorcentage ? 'BUY' : 'SELL';
+
+//       const order = await client.futuresOrder({
+//         symbol: pair,
+//         side,
+//         type: 'MARKET',
+//         quantity: parseFloat(quantity.toFixed(state.pairConfigs[pair].quantityPrecision))
+//       });
+
+//       console.log(`✅ ORDEM EXECUTADA: ${side} ${quantity} ${pair} @ ${currentPrice.toFixed(2)} | Ordem ID: ${order.orderId}`);
+
+//       // 🔥 PRIMEIRO define TP/SL (segurança)
+//       await setProtectionOrders(client, pair, side, currentPrice);
+
+//       // 🔥 DEPOIS marca como ativo
+//       state.activePositions.set(pair, true);
+
+//     } catch (error) {
+//       console.error(`❌ Erro ao operar ${pair}:`, error.message);
+//       await emergencyClose(client, pair);
+//     }
+//   }
+// }
+
+// function calculateSafeQuantity(pair, price, balance, riskPercent) {
+//   try {
+//     const pairConfig = state.pairConfigs[pair];
+//     const leverage = config.pairs[pair].leverage;
+
+//     const riskAmount = balance * (riskPercent / 100);
+//     const positionValue = riskAmount * leverage;
+
+//     let quantity = positionValue / price;
+
+//     quantity = Math.floor(quantity / pairConfig.stepSize) * pairConfig.stepSize;
+
+//     return quantity >= pairConfig.minQty
+//       ? parseFloat(quantity.toFixed(pairConfig.quantityPrecision))
+//       : 0;
+
+//   } catch (error) {
+//     console.error(`❌ Erro ao calcular quantidade: ${error.message}`);
+//     return 0;
+//   }
+// }
+
+// async function setProtectionOrders(client, pair, side, entryPrice) {
+//   try {
+//     const pairConfig = state.pairConfigs[pair];
+
+//     const { takeProfit, stopLoss } = calculateTargets(
+//       entryPrice,
+//       side === 'BUY' ? 'LONG' : 'SHORT',
+//       config.riskManagement.takeProfit,
+//       config.riskManagement.stopLoss
+//     );
+
+//     const formattedTP = parseFloat(takeProfit.toFixed(pairConfig.pricePrecision));
+//     const formattedSL = parseFloat(stopLoss.toFixed(pairConfig.pricePrecision));
+
+//     const closeSide = side === 'BUY' ? 'SELL' : 'BUY';
+
+//     // 🟢 TAKE PROFIT
+//     await client.futuresOrder({
+//       symbol: pair,
+//       side: closeSide,
+//       type: 'TAKE_PROFIT_MARKET',
+//       stopPrice: formattedTP,
+//       closePosition: true,
+//       //reduceOnly: true,
+//       workingType: 'MARK_PRICE'
+//     });
+
+//     // 🔴 STOP LOSS
+//     await client.futuresOrder({
+//       symbol: pair,
+//       side: closeSide,
+//       type: 'STOP_MARKET',
+//       stopPrice: formattedSL,
+//       closePosition: true,
+//       //reduceOnly: true,
+//       workingType: 'MARK_PRICE'
+//     });
+
+//     console.log(`🎯 ${pair} | TP: ${formattedTP} | SL: ${formattedSL}`);
+
+//   } catch (error) {
+//     console.error(`❌ Falha ao definir TP/SL em ${pair}: ${error.message}`);
+//   }
+// }
+
+// async function emergencyClose(client, pair) {
+//   try {
+//     const positions = await client.futuresPositionRisk({ symbol: pair });
+//     const position = positions.find(p => Math.abs(parseFloat(p.positionAmt)) > 0);
+
+//     if (position) {
+//       await client.futuresOrder({
+//         symbol: pair,
+//         side: parseFloat(position.positionAmt) > 0 ? 'SELL' : 'BUY',
+//         type: 'MARKET',
+//         quantity: Math.abs(parseFloat(position.positionAmt)),
+//         reduceOnly: true
+//       });
+
+//       state.activePositions.delete(pair);
+//       console.log(`🛑 ${pair} | Fechamento emergencial`);
+//     } else {
+//       state.activePositions.delete(pair);
+//     }
+
+//   } catch (error) {
+//     console.error(`❌ Falha ao fechar ${pair}: ${error.message}`);
+//   }
+// }
+
+// async function checkAndCleanupPositions(client) {
+//   const activePairs = Object.keys(config.pairs).filter(pair => config.pairs[pair].active);
+
+//   for (const pair of activePairs) {
+//     try {
+//       const positions = await client.futuresPositionRisk({ symbol: pair });
+//       const position = positions.find(p => Math.abs(parseFloat(p.positionAmt)) > 0);
+
+//       if (!position || Math.abs(parseFloat(position.positionAmt)) === 0) {
+
+//         const openOrders = await client.futuresOpenOrders({ symbol: pair });
+
+//         for (const order of openOrders) {
+//           await client.futuresCancelOrder({ symbol: pair, orderId: order.orderId });
+//         }
+
+//         if (openOrders.length > 0) {
+//           console.log(`🧹 ${pair} | Ordens canceladas`);
+//         }
+
+//         if (state.activePositions.has(pair)) {
+//           state.activePositions.delete(pair);
+//           console.log(`🔁 ${pair} | Liberado`);
+//         }
+//       }
+
+//     } catch (error) {
+//       console.error(`❌ Erro ao limpar ${pair}:`, error.message);
+//     }
+//   }
+// }
+
+// module.exports = async (client, availableBalance, botCommand) => {
+
+//   if (botCommand === 'off') {
+//     state.botEnabled = false;
+//     console.log('⛔ Bot desligado');
+//     return;
+//   }
+
+//   if (botCommand === 'on') {
+//     state.botEnabled = true;
+//     console.log('✅ Bot ligado');
+//   }
+
+//   await initializePairs(client);
+//   await executeStrategy(client, availableBalance);
+
+//   setInterval(async () => {
+//     if (!state.botEnabled) return;
+
+//     try {
+//       const availableBalance = await getFreeUSDT(client);
+//       await checkAndCleanupPositions(client);
+//       await executeStrategy(client, availableBalance);
+//     } catch (error) {
+//       console.error('❌ Erro geral:', error.message);
+//     }
+//   }, 5000); // 🔥 melhorado (antes 2000)
+// };
+
 const { calculateTargets } = require('../bot/utils');
 const config = require('../bot/config');
 const { getFuturesExchangeInfo, setMarginType, setLeverage } = require('./connection');
@@ -510,101 +795,52 @@ const state = {
 };
 
 async function initializePairs(client) {
-  try {
-    const exchangeInfo = await getFuturesExchangeInfo();
+  const exchangeInfo = await getFuturesExchangeInfo();
 
-    for (const pair of Object.keys(config.pairs)) {
-      if (!config.pairs[pair].active) continue;
+  for (const pair of Object.keys(config.pairs)) {
+    if (!config.pairs[pair].active) continue;
 
-      const symbolInfo = exchangeInfo.symbols.find(s => s.symbol === pair);
-      if (!symbolInfo) {
-        console.warn(`⚠️ Par ${pair} não encontrado na Binance`);
-        continue;
-      }
+    const symbolInfo = exchangeInfo.symbols.find(s => s.symbol === pair);
+    if (!symbolInfo) continue;
 
-      const lotFilter = symbolInfo.filters.find(f => f.filterType === 'LOT_SIZE');
-      const priceFilter = symbolInfo.filters.find(f => f.filterType === 'PRICE_FILTER');
-      const minNotional = symbolInfo.filters.find(f => f.filterType === 'MIN_NOTIONAL');
+    const lotFilter = symbolInfo.filters.find(f => f.filterType === 'LOT_SIZE');
+    const priceFilter = symbolInfo.filters.find(f => f.filterType === 'PRICE_FILTER');
+    const minNotional = symbolInfo.filters.find(f => f.filterType === 'MIN_NOTIONAL');
 
-      state.pairConfigs[pair] = {
-        quantityPrecision: symbolInfo.quantityPrecision,
-        pricePrecision: symbolInfo.pricePrecision,
-        stepSize: parseFloat(lotFilter.stepSize),
-        minQty: parseFloat(lotFilter.minQty),
-        tickSize: parseFloat(priceFilter.tickSize),
-        minNotional: parseFloat(minNotional.notional)
-      };
+    state.pairConfigs[pair] = {
+      quantityPrecision: symbolInfo.quantityPrecision,
+      pricePrecision: symbolInfo.pricePrecision,
+      stepSize: parseFloat(lotFilter.stepSize),
+      minQty: parseFloat(lotFilter.minQty),
+      tickSize: parseFloat(priceFilter.tickSize),
+      minNotional: parseFloat(minNotional.notional)
+    };
 
-      try {
-        await setMarginType(pair, config.marginType);
-      } catch (err) {
-        const msg = err?.response?.data?.msg || err.message;
-
-        if (msg.includes('No need to change margin type')) {
-          console.log(`ℹ️ MarginType já está como ${config.marginType} para ${pair}`);
-        } else {
-          console.warn(`⚠️ Erro ao definir marginType de ${pair}: ${msg}`);
-        }
-      }
-
-      try {
-        await setLeverage(pair, config.pairs[pair].leverage);
-      } catch (err) {
-        console.warn(`⚠️ Erro ao definir leverage de ${pair}: ${err.message}`);
-      }
-    }
-  } catch (error) {
-    console.warn(`⚠️ Erro ao inicializar pares: ${error.message}`);
+    await setMarginType(pair, config.marginType);
+    await setLeverage(pair, config.pairs[pair].leverage);
   }
 }
 
 async function getFreeUSDT(client) {
-  const account = await client.futuresAccountInfo();
-  return parseFloat(account.availableBalance);
+  const acc = await client.futuresAccountInfo();
+  return parseFloat(acc.availableBalance);
 }
 
-async function executeStrategy(client, availableBalance) {
+async function executeStrategy(client, balance) {
   if (!state.botEnabled) return;
 
-  const activePairs = Object.keys(config.pairs).filter(pair => config.pairs[pair].active);
-  const freeMargin = await getFreeUSDT(client);
+  const pairs = Object.keys(config.pairs).filter(p => config.pairs[p].active);
 
-  for (const pair of activePairs) {
+  for (const pair of pairs) {
     try {
       if (state.activePositions.has(pair)) continue;
 
-      const positions = await client.futuresPositionRisk({ symbol: pair });
-      const position = positions.find(p => Math.abs(parseFloat(p.positionAmt)) > 0);
-
-      if (position && Math.abs(parseFloat(position.positionAmt)) > 0) {
-        state.activePositions.set(pair, true);
-        continue;
-      }
-
       const priceData = await client.futuresMarkPrice({ symbol: pair });
-      const currentPrice = parseFloat(priceData.markPrice);
+      const price = parseFloat(priceData.markPrice);
 
-      const quantity = calculateSafeQuantity(
-        pair,
-        currentPrice,
-        availableBalance,
-        config.riskManagement.riskPerTrade
-      );
+      const qty = calculateSafeQuantity(pair, price, balance, config.riskManagement.riskPerTrade);
 
-      const orderValue = quantity * currentPrice;
-      const minNotional = state.pairConfigs[pair].minNotional;
-      const leverage = config.pairs[pair].leverage;
-      const requiredMargin = orderValue / leverage;
-
-      if (!quantity || orderValue < minNotional) {
-        console.log(`⚠️ ${pair} | Valor abaixo do mínimo (${orderValue.toFixed(4)} < ${minNotional})`);
-        continue;
-      }
-
-      if (requiredMargin > freeMargin) {
-        console.log(`⚠️ ${pair} | Margem insuficiente (${requiredMargin.toFixed(2)} > ${freeMargin.toFixed(2)})`);
-        continue;
-      }
+      if (!qty) continue;
 
       const side = Math.random() > config.randomPorcentage ? 'BUY' : 'SELL';
 
@@ -612,173 +848,96 @@ async function executeStrategy(client, availableBalance) {
         symbol: pair,
         side,
         type: 'MARKET',
-        quantity: parseFloat(quantity.toFixed(state.pairConfigs[pair].quantityPrecision))
+        quantity: qty
       });
 
-      console.log(`✅ ORDEM EXECUTADA: ${side} ${quantity} ${pair} @ ${currentPrice.toFixed(2)} | Ordem ID: ${order.orderId}`);
+      console.log(`✅ ${side} ${pair} | ID ${order.orderId}`);
 
-      // 🔥 PRIMEIRO define TP/SL (segurança)
-      await setProtectionOrders(client, pair, side, currentPrice);
+      // ⏳ espera posição existir
+      await new Promise(r => setTimeout(r, 1200));
 
-      // 🔥 DEPOIS marca como ativo
+      const pos = await client.futuresPositionRisk({ symbol: pair });
+      const hasPos = pos.some(p => Math.abs(parseFloat(p.positionAmt)) > 0);
+
+      if (!hasPos) {
+        console.log(`⚠️ ${pair} posição fechou rápido`);
+        continue;
+      }
+
+      await setProtectionOrders(client, pair, side, price);
+
       state.activePositions.set(pair, true);
 
-    } catch (error) {
-      console.error(`❌ Erro ao operar ${pair}:`, error.message);
-      await emergencyClose(client, pair);
+    } catch (err) {
+      console.error(`❌ ${pair}:`, err.message);
     }
   }
 }
 
 function calculateSafeQuantity(pair, price, balance, riskPercent) {
   try {
-    const pairConfig = state.pairConfigs[pair];
-    const leverage = config.pairs[pair].leverage;
+    const cfg = state.pairConfigs[pair];
+    const lev = config.pairs[pair].leverage;
 
-    const riskAmount = balance * (riskPercent / 100);
-    const positionValue = riskAmount * leverage;
+    const value = balance * (riskPercent / 100) * lev;
 
-    let quantity = positionValue / price;
+    let qty = value / price;
 
-    quantity = Math.floor(quantity / pairConfig.stepSize) * pairConfig.stepSize;
+    qty = Math.floor(qty / cfg.stepSize) * cfg.stepSize;
 
-    return quantity >= pairConfig.minQty
-      ? parseFloat(quantity.toFixed(pairConfig.quantityPrecision))
+    return qty >= cfg.minQty
+      ? parseFloat(qty.toFixed(cfg.quantityPrecision))
       : 0;
 
-  } catch (error) {
-    console.error(`❌ Erro ao calcular quantidade: ${error.message}`);
+  } catch {
     return 0;
   }
 }
 
-async function setProtectionOrders(client, pair, side, entryPrice) {
-  try {
-    const pairConfig = state.pairConfigs[pair];
+async function setProtectionOrders(client, pair, side, entry) {
+  const cfg = state.pairConfigs[pair];
 
-    const { takeProfit, stopLoss } = calculateTargets(
-      entryPrice,
-      side === 'BUY' ? 'LONG' : 'SHORT',
-      config.riskManagement.takeProfit,
-      config.riskManagement.stopLoss
-    );
+  const { takeProfit, stopLoss } = calculateTargets(
+    entry,
+    side === 'BUY' ? 'LONG' : 'SHORT',
+    config.riskManagement.takeProfit,
+    config.riskManagement.stopLoss
+  );
 
-    const formattedTP = parseFloat(takeProfit.toFixed(pairConfig.pricePrecision));
-    const formattedSL = parseFloat(stopLoss.toFixed(pairConfig.pricePrecision));
+  const closeSide = side === 'BUY' ? 'SELL' : 'BUY';
 
-    const closeSide = side === 'BUY' ? 'SELL' : 'BUY';
+  await client.futuresOrder({
+    symbol: pair,
+    side: closeSide,
+    type: 'TAKE_PROFIT_MARKET',
+    stopPrice: takeProfit.toFixed(cfg.pricePrecision),
+    closePosition: true,
+    workingType: 'MARK_PRICE'
+  });
 
-    // 🟢 TAKE PROFIT
-    await client.futuresOrder({
-      symbol: pair,
-      side: closeSide,
-      type: 'TAKE_PROFIT_MARKET',
-      stopPrice: formattedTP,
-      closePosition: true,
-      //reduceOnly: true,
-      workingType: 'MARK_PRICE'
-    });
+  await client.futuresOrder({
+    symbol: pair,
+    side: closeSide,
+    type: 'STOP_MARKET',
+    stopPrice: stopLoss.toFixed(cfg.pricePrecision),
+    closePosition: true,
+    workingType: 'MARK_PRICE'
+  });
 
-    // 🔴 STOP LOSS
-    await client.futuresOrder({
-      symbol: pair,
-      side: closeSide,
-      type: 'STOP_MARKET',
-      stopPrice: formattedSL,
-      closePosition: true,
-      //reduceOnly: true,
-      workingType: 'MARK_PRICE'
-    });
-
-    console.log(`🎯 ${pair} | TP: ${formattedTP} | SL: ${formattedSL}`);
-
-  } catch (error) {
-    console.error(`❌ Falha ao definir TP/SL em ${pair}: ${error.message}`);
-  }
+  console.log(`🎯 ${pair} TP/SL definidos`);
 }
 
-async function emergencyClose(client, pair) {
-  try {
-    const positions = await client.futuresPositionRisk({ symbol: pair });
-    const position = positions.find(p => Math.abs(parseFloat(p.positionAmt)) > 0);
-
-    if (position) {
-      await client.futuresOrder({
-        symbol: pair,
-        side: parseFloat(position.positionAmt) > 0 ? 'SELL' : 'BUY',
-        type: 'MARKET',
-        quantity: Math.abs(parseFloat(position.positionAmt)),
-        reduceOnly: true
-      });
-
-      state.activePositions.delete(pair);
-      console.log(`🛑 ${pair} | Fechamento emergencial`);
-    } else {
-      state.activePositions.delete(pair);
-    }
-
-  } catch (error) {
-    console.error(`❌ Falha ao fechar ${pair}: ${error.message}`);
-  }
-}
-
-async function checkAndCleanupPositions(client) {
-  const activePairs = Object.keys(config.pairs).filter(pair => config.pairs[pair].active);
-
-  for (const pair of activePairs) {
-    try {
-      const positions = await client.futuresPositionRisk({ symbol: pair });
-      const position = positions.find(p => Math.abs(parseFloat(p.positionAmt)) > 0);
-
-      if (!position || Math.abs(parseFloat(position.positionAmt)) === 0) {
-
-        const openOrders = await client.futuresOpenOrders({ symbol: pair });
-
-        for (const order of openOrders) {
-          await client.futuresCancelOrder({ symbol: pair, orderId: order.orderId });
-        }
-
-        if (openOrders.length > 0) {
-          console.log(`🧹 ${pair} | Ordens canceladas`);
-        }
-
-        if (state.activePositions.has(pair)) {
-          state.activePositions.delete(pair);
-          console.log(`🔁 ${pair} | Liberado`);
-        }
-      }
-
-    } catch (error) {
-      console.error(`❌ Erro ao limpar ${pair}:`, error.message);
-    }
-  }
-}
-
-module.exports = async (client, availableBalance, botCommand) => {
-
-  if (botCommand === 'off') {
-    state.botEnabled = false;
-    console.log('⛔ Bot desligado');
-    return;
-  }
-
-  if (botCommand === 'on') {
-    state.botEnabled = true;
-    console.log('✅ Bot ligado');
-  }
+module.exports = async (client, balance, cmd) => {
+  if (cmd === 'off') return (state.botEnabled = false);
+  if (cmd === 'on') state.botEnabled = true;
 
   await initializePairs(client);
-  await executeStrategy(client, availableBalance);
+  await executeStrategy(client, balance);
 
   setInterval(async () => {
     if (!state.botEnabled) return;
 
-    try {
-      const availableBalance = await getFreeUSDT(client);
-      await checkAndCleanupPositions(client);
-      await executeStrategy(client, availableBalance);
-    } catch (error) {
-      console.error('❌ Erro geral:', error.message);
-    }
-  }, 5000); // 🔥 melhorado (antes 2000)
+    const bal = await getFreeUSDT(client);
+    await executeStrategy(client, bal);
+  }, 5000);
 };
