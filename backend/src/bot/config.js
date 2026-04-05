@@ -1,8 +1,8 @@
 module.exports = {
   botActive: true, // <- controle liga/desliga
-  randomPorcentage: 0.51, //sell
+  //randomPorcentage: 0.51, //sell
   //randomPorcentage2: 0.49, //buy
-  //randomPorcentage: 0.50, //neutral
+  randomPorcentage: 0.50, //neutral
 
   marginType: 'ISOLATED',
   pairs: {
@@ -14,9 +14,9 @@ module.exports = {
     '1000PEPEUSDT': { active: false, leverage: 10 },
   },
   riskManagement: {
-    riskPerTrade: 35,
-    takeProfit: 0.65,
-    stopLoss: 0.40
+    riskPerTrade: 25,
+    takeProfit: 0.35,
+    stopLoss: 0.20
   }
 };
 
