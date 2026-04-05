@@ -7,7 +7,7 @@ module.exports = {
   marginType: 'ISOLATED',
   pairs: {
     'TRXUSDT': { active: false, leverage: 10 },
-    'DOGEUSDT': { active: true, leverage: 5 },
+    'DOGEUSDT': { active: true, leverage: 15 },
     '1INCHUSDT': { active: false, leverage: 20 },
     'BTCUSDT': { active: false, leverage: 20 },
     'ETHUSDT': { active: false, leverage: 20 },
